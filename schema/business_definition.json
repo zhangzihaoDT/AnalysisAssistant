@@ -71,5 +71,31 @@
     "LS6": ["CM0", "CM1", "CM2"],
     "L6": ["DM0", "DM1"]
   },
-  "age_limit": [18, 80]
+  "age_limit": [18, 80],
+  "business_knowledge": {
+    "main_selling_models_seats_6": {
+      "updated_at": "2026-03",
+      "updated_source": "TIP&MIX 数据截至 2026 年 3 月",
+      "models": [
+        "极氪9X",
+        "岚图泰山",
+        "理想L9",
+        "领克900",
+        "腾势N8L",
+        "蔚来ES8",
+        "问界M8 EV",
+        "问界M8 REEV",
+        "问界M9 EV",
+        "问界M9 REEV",
+        "银河M9",
+        "智己LS9",
+        "X9 EV",
+        "X9 REEV",
+        "零跑D19",
+        "ID.ERA 9X",
+        "大唐EV",
+        "乐道L90"
+      ]
+    }
+  }
 }
