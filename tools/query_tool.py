@@ -214,6 +214,11 @@ class QueryTool:
         needs_series_group = any(
             isinstance(f, dict) and f.get("field") == "series_group_logic" for f in (filters or [])
         )
+        dimensions = plan.get("dimensions", [])
+        if not isinstance(dimensions, list):
+            dimensions = []
+        if not needs_series_group and isinstance(dimensions, list):
+            needs_series_group = "series_group_logic" in dimensions
         if needs_series_group and "series_group_logic" not in df.columns:
             try:
                 from operators.series_group_logic import apply_series_group_logic
@@ -286,7 +291,6 @@ class QueryTool:
             elif op == "not matches":
                 df = df[~df[field].astype(str).str.contains(str(value), na=False, regex=True)]
 
-        dimensions = plan.get("dimensions", [])
         metrics = plan.get("metrics", [])
 
         result_df = df

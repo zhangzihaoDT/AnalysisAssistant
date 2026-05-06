@@ -6,6 +6,7 @@ import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from agent.llm_config import DEEPSEEK_CHAT_MODEL
 from agent.memory_extractor import apply_memory_update, extract_memory_update
 from agent.planner import PlanningAgent, plan_runtime_action
 from agent.schema import DATA_PATH_FILE, SCHEMA_DIR
@@ -211,7 +212,7 @@ def _generate_final_answer(client: OpenAI, user_query: str, result_blocks: list[
         },
         {"role": "user", "content": f"用户问题: {user_query}\n\n{joined_results}"},
     ]
-    final_response = client.chat.completions.create(model="deepseek-chat", messages=messages)
+    final_response = client.chat.completions.create(model=DEEPSEEK_CHAT_MODEL, messages=messages)
     return final_response.choices[0].message.content or ""
 
 
@@ -263,7 +264,7 @@ def _generate_finish_summary(client: OpenAI, user_query: str, action: dict, last
         },
     ]
     try:
-        response = client.chat.completions.create(model="deepseek-chat", messages=messages)
+        response = client.chat.completions.create(model=DEEPSEEK_CHAT_MODEL, messages=messages)
         text = str(response.choices[0].message.content or "").strip()
         if text:
             return text
@@ -320,6 +321,7 @@ def run_main_agent(user_query: str) -> str:
     comparison_tool = ComparisonTool(query_tool=query_tool)
     statistics_tool = StatisticsTool()
     state = AgentRuntimeState(goal=user_query, max_steps=5)
+    goal_time_window = PlanningAgent._parse_time_window(user_query, datetime.date.today())
     finish_grounded_answer = ""
     while not state.done and state.iteration < state.max_steps:
         print(f"\n=== Loop Step {state.iteration + 1}/{state.max_steps} ===")
@@ -338,6 +340,7 @@ def run_main_agent(user_query: str) -> str:
                     "facts": state.facts,
                     "working_memory": state.working_memory,
                     "execution_log": memory.get("execution_log") if isinstance(memory, dict) else [],
+                    "goal_time_window": goal_time_window,
                 },
             )
             status = step_result.get("status")

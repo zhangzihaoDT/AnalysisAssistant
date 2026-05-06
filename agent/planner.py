@@ -3,6 +3,7 @@ import datetime
 import re
 
 from openai import OpenAI
+from agent.llm_config import DEEPSEEK_PLANNER_MODEL
 from agent.state import AgentRuntimeState
 
 LOOP_RUNTIME_SYSTEM_PROMPT = """
@@ -23,6 +24,7 @@ LOOP_RUNTIME_SYSTEM_PROMPT = """
 3. 最多执行 5 步，避免重复查询。
 4. query 必须具体，且与目标直接相关。
 5. 不允许输出除 JSON 以外的文本。
+6. 若需要拆分时间区间多次查询，必须从历史 DSL 中读取实际查询窗口（filters/time），并确保窗口按 [start, end)（左闭右开）无重叠、无漏数：下一段 start 应等于上一段 end。
 """
 
 
@@ -430,6 +432,20 @@ class PlanningAgent:
                 return (start_date.isoformat(), end_date.isoformat())
             end_open = end_date + datetime.timedelta(days=1)
             return (start_date.isoformat(), end_open.isoformat())
+
+        m = re.search(
+            r"(?P<y>\d{4})-(?P<m1>\d{1,2})-(?P<d1>\d{1,2})\s*(?:到|至|[-~—–－])\s*(?P<m2>\d{1,2})-(?P<d2>\d{1,2})",
+            q,
+        )
+        if m:
+            year = int(m.group("y"))
+            start_date = _safe_date(year, int(m.group("m1")), int(m.group("d1")))
+            end_date = _safe_date(year, int(m.group("m2")), int(m.group("d2")))
+            if start_date and end_date:
+                if "留存" in q or "预售期" in q:
+                    return (start_date.isoformat(), end_date.isoformat())
+                end_open = end_date + datetime.timedelta(days=1)
+                return (start_date.isoformat(), end_open.isoformat())
 
         m = re.search(r"(\d{4}-\d{2}-\d{2})", q)
         if m:
@@ -1513,7 +1529,7 @@ class PlanningAgent:
 
         try:
             response = self.client.chat.completions.create(
-                model="deepseek-chat",
+                model=DEEPSEEK_PLANNER_MODEL,
                 messages=messages,
                 tools=[PLANNING_TOOL_SCHEMA],
                 tool_choice={"type": "function", "function": {"name": "create_planning_dsl"}},
@@ -1659,8 +1675,35 @@ class PlanningAgent:
                     plan["dimensions"] = ["order_create_date"]
                 if isinstance(plan.get("statistics"), dict):
                     plan["statistics"] = {}
+
+        dims = plan.get("dimensions")
+        if not isinstance(dims, list):
+            dims = []
+        if not dims:
+            q = (user_query or "").replace(" ", "")
+            dataset = str(plan.get("dataset") or "")
+            want_series = any(k in q for k in ["分车型", "按车型", "车型分别", "分车系", "按车系", "车系分别", "按系列", "分系列"])
+            want_product = any(k in q for k in ["按产品名称", "分产品名称", "产品名称", "按产品", "分产品"])
+            want_region = any(k in q for k in ["按大区", "分大区", "大区分别"])
+            want_store = any(k in q for k in ["按门店", "分门店", "门店分别"])
+            want_store_city = any(k in q for k in ["按门店城市", "分门店城市", "门店城市分别"])
+            want_license_city = any(k in q for k in ["按上牌城市", "分上牌城市", "上牌城市分别"])
+            if dataset == "order_data":
+                if want_product:
+                    plan["dimensions"] = ["product_name"]
+                elif want_series:
+                    plan["dimensions"] = ["series"]
+                elif want_store_city:
+                    plan["dimensions"] = ["store_city"]
+                elif want_license_city:
+                    plan["dimensions"] = ["license_city"]
+                elif want_store:
+                    plan["dimensions"] = ["store_name"]
+                elif want_region:
+                    plan["dimensions"] = ["parent_region_name"]
         filters = self._apply_semantic_filters(filters, user_query)
         plan["filters"] = filters
+
 
         comparison = plan.get("comparison")
         if not isinstance(comparison, dict) or comparison.get("type") not in {"none", "yoy", "wow", "dod"}:
@@ -1773,7 +1816,7 @@ class PlanningAgent:
         ]
         try:
             response = self.client.chat.completions.create(
-                model="deepseek-chat",
+                model=DEEPSEEK_PLANNER_MODEL,
                 messages=messages,
                 tools=[TIME_REWRITE_TOOL_SCHEMA],
                 tool_choice={"type": "function", "function": {"name": "rewrite_time_window"}},
@@ -1869,7 +1912,7 @@ def plan_runtime_action(client: OpenAI, state: AgentRuntimeState) -> dict:
         },
     ]
     try:
-        response = client.chat.completions.create(model="deepseek-chat", messages=messages)
+        response = client.chat.completions.create(model=DEEPSEEK_PLANNER_MODEL, messages=messages)
         content = response.choices[0].message.content or ""
         parsed = json.loads(_extract_json_content(content))
         if not isinstance(parsed, dict):

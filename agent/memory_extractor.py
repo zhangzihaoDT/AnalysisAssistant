@@ -2,6 +2,7 @@ import json
 
 from openai import OpenAI
 
+from agent.llm_config import DEEPSEEK_CHAT_MODEL
 from agent.state import AgentRuntimeState
 
 
@@ -43,7 +44,7 @@ def extract_memory_update(client: OpenAI, state: AgentRuntimeState, last_result:
         },
     ]
     try:
-        response = client.chat.completions.create(model="deepseek-chat", messages=messages)
+        response = client.chat.completions.create(model=DEEPSEEK_CHAT_MODEL, messages=messages)
         content = str(response.choices[0].message.content or "")
         parsed = json.loads(_extract_json_content(content))
         if isinstance(parsed, dict):

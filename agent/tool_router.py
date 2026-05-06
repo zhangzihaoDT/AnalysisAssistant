@@ -1,5 +1,6 @@
 import json
 import datetime
+import re
 
 from agent.planner import PlanningAgent
 from operators import run_registered_operator
@@ -627,6 +628,55 @@ def run_dsl_step(
     plan = planning_agent.create_plan(action_query, memory_context=memory_context)
     if not isinstance(plan, dict) or not plan:
         return {"status": "error", "message": "未能生成有效的规划 DSL。"}
+
+    goal_time_window = None
+    if isinstance(memory_context, dict):
+        goal_time_window = memory_context.get("goal_time_window")
+
+    if (
+        goal_time_window
+        and isinstance(goal_time_window, (tuple, list))
+        and len(goal_time_window) == 2
+        and isinstance(plan.get("time"), dict)
+    ):
+        try:
+            goal_start = datetime.date.fromisoformat(str(goal_time_window[0])[:10])
+            goal_end = datetime.date.fromisoformat(str(goal_time_window[1])[:10])
+            time = plan.get("time") or {}
+            time_start = datetime.date.fromisoformat(str(time.get("start"))[:10])
+            time_end = datetime.date.fromisoformat(str(time.get("end"))[:10])
+
+            clamped_start = max(time_start, goal_start)
+            clamped_end = min(time_end, goal_end)
+            if clamped_end <= clamped_start:
+                return {
+                    "status": "error",
+                    "message": f"规划的时间窗口超出目标范围，且裁剪后无有效区间: [{clamped_start.isoformat()}, {clamped_end.isoformat()})",
+                }
+
+            if clamped_start != time_start or clamped_end != time_end:
+                time["start"] = clamped_start.isoformat()
+                time["end"] = clamped_end.isoformat()
+                plan["time"] = time
+
+                time_field = time.get("field")
+                filters = plan.get("filters")
+                if isinstance(time_field, str) and isinstance(filters, list) and filters:
+                    rewritten_filters: list[dict] = []
+                    for f in filters:
+                        if not isinstance(f, dict):
+                            continue
+                        if f.get("field") != time_field:
+                            rewritten_filters.append(f)
+                            continue
+                        op = f.get("op")
+                        value = f.get("value")
+                        if op in {">=", "<"} and isinstance(value, str) and re.match(r"^\d{4}-\d{2}-\d{2}", value.strip()):
+                            continue
+                        rewritten_filters.append(f)
+                    plan["filters"] = rewritten_filters
+        except Exception:
+            pass
 
     if isinstance(plan.get("clarification"), dict):
         clarification = plan["clarification"]
