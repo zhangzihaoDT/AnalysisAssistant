@@ -1447,17 +1447,26 @@ def _merge_daily_matrices(base: dict[str, object], inc: dict[str, object]) -> di
     return {"columns": merged_cols, "rows": merged_rows}
 
 
+def _find_repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for p in [here.parent, *here.parents]:
+        if (p / "schema").exists():
+            return p
+    return here.parent
+
+
 def _default_range_csv_path(start_date: pd.Timestamp, end_date: pd.Timestamp) -> Path:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = _find_repo_root()
     return repo_root / "out" / f"index_summary_daily_matrix_{start_date.date()}_{end_date.date()}.csv"
 
 
 def _default_maintenance_csv_path() -> Path:
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = _find_repo_root()
     return repo_root / "schema" / "index_summary_daily_matrix_2024-01-01_to_yesterday.csv"
 
 
 def main() -> None:
+    repo_root = _find_repo_root()
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", nargs="+", default=None)
     parser.add_argument("--start", default=None)
@@ -1467,7 +1476,7 @@ def main() -> None:
     parser.add_argument("--print-json", action="store_true")
     parser.add_argument(
         "--data-path-md",
-        default=str(Path(__file__).resolve().parents[1] / "schema" / "data_path.md"),
+        default=str(repo_root / "schema" / "data_path.md"),
     )
     parser.add_argument("--refresh-days", type=int, default=7)
     args = parser.parse_args()
