@@ -36,24 +36,19 @@
       "finish": "2026-05-16"
     }
   },
-  "battery_capacity": {
-    "52kwh": [
-      "新一代智己LS6 52 Max",
-      "新一代智己LS6 52 Max+",
-      "新一代智己LS6 52 Pro",
-      "智己LS9 52 Ultra"
-    ],
-    "66kwh": [
-      "新一代智己LS6 66 Max",
-      "新一代智己LS6 66 Max+",
-      "智己LS9 66 Ultra"
-    ],
-    "76kwh": ["新一代智己LS6 Max", "新一代智己LS6 Max+", "新一代智己LS6 Pro"],
-    "103kwh": ["新一代智己LS6 Ultra", "新一代智己LS6 Pro Max"]
+  "battery_capacity_logic": {
+    "52kwh": "product_name LIKE '%52%'",
+    "66kwh": "product_name LIKE '%66%'",
+    "76kwh": "product_name LIKE '%LS6%' AND product_name NOT LIKE '%52%' AND product_name NOT LIKE '%66%' AND product_name NOT LIKE '%Ultra%' AND product_name NOT LIKE '%Pro Max%'",
+    "103kwh": "product_name LIKE '%LS6%' AND product_name LIKE '%Ultra%' OR product_name LIKE '%LS6%' AND product_name LIKE '%Pro Max%'"
   },
   "product_type_logic": {
     "增程": "product_name LIKE '%52%' OR product_name LIKE '%66%'",
     "纯电": "product_name NOT LIKE '%52%' AND product_name NOT LIKE '%66%'"
+  },
+  "seat_count_logic": {
+    "五座": "product_name LIKE '%五座%'",
+    "六座": "product_name LIKE '%六座%'"
   },
   "series_group_logic": {
     "CM2": "product_name LIKE '%新一代%' AND product_name LIKE '%LS6%'",
